@@ -38,6 +38,7 @@
 <div id="err"></div>
 <main>
 <div class="cards" id="cards"></div>
+<p id="insight" style="color:#555;font-size:14px"></p>
 <div class="grid">
   <section><h2>By organization</h2><div id="orgs"></div></section>
   <section><h2>By publication status</h2><div id="status"></div></section>
@@ -77,6 +78,9 @@ fetch(URL).then(r => r.json()).then(specs => {
     [recs, 'Recommendations'],
     [specs.length - specs.filter(s => s.release).length, 'nightly-only (incubating)'],
   ].map(([n,l]) => `<div class="card"><b>${n}</b>${l}</div>`).join('');
+
+  const nightlyOnly = specs.length - specs.filter(s => s.release).length;
+  $('insight').textContent = `${(nightlyOnly/specs.length*100).toFixed(0)}% of all tracked specs (${nightlyOnly} of ${specs.length}) are nightly-only — nearly half the web platform is still incubating.`;
 
   const statusOf = s => (s.release && s.release.status) || 'Nightly only';
   const groupCounts = {};
