@@ -3,18 +3,19 @@ Fetches browser-specs, recomputes every number the dashboard shows in Python,
 renders the page (and filtered views) in headless Chrome, asserts they match.
 Run: python test_dashboard.py
 """
-import json, re, subprocess, sys, tempfile, urllib.request, urllib.parse
+import json, re, shutil, subprocess, sys, tempfile, urllib.request, urllib.parse
 from collections import Counter
 from pathlib import Path
 
-HTML = Path(r"D:\w3c\hackthon\index.html")
+HTML = Path(__file__).parent / "index.html"
 CHROME_CANDIDATES = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    shutil.which("google-chrome"), shutil.which("chromium"), shutil.which("chrome"),
 ]
 
 def dump_dom(url):
-    chrome = next(p for p in CHROME_CANDIDATES if Path(p).exists())
+    chrome = next(p for p in CHROME_CANDIDATES if p and Path(p).exists())
     out = subprocess.run(
         [chrome, "--headless=new", "--disable-gpu", "--virtual-time-budget=8000", "--dump-dom", url],
         capture_output=True, text=True, timeout=60)
