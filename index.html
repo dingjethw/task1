@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>State of Web Standards — browser-specs dashboard</title>
+<style>
+  :root { --w3c: #005a9c; }
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f6f7f9; color: #222; }
+  header { background: var(--w3c); color: #fff; padding: 14px 24px; }
+  header h1 { font-size: 20px; margin: 0; }
+  header small { opacity: .8; }
+  main { padding: 0 24px 40px; }
+  h2 { font-size: 15px; margin: 26px 0 8px; }
+  .cards { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+  .card { background: #fff; border: 1px solid #e2e4e8; border-radius: 8px; padding: 12px 18px; min-width: 130px; }
+  .card b { font-size: 26px; display: block; color: var(--w3c); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+  @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+  .bar { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 13px; cursor: pointer; border-radius: 4px; }
+  .bar:hover { background: #e8eef4; }
+  .bar.sel .label, .bar.sel .n { font-weight: 700; color: var(--w3c); }
+  .bar .label { width: 45%; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar .fill { background: var(--w3c); height: 16px; border-radius: 3px; min-width: 2px; }
+  .bar .n { color: #555; }
+  input { padding: 8px 10px; width: 320px; border: 1px solid #ccc; border-radius: 6px; }
+  .chip { display: inline-block; background: var(--w3c); color: #fff; border-radius: 12px; padding: 2px 10px; margin-left: 10px; cursor: pointer; font-size: 12px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 13px; background: #fff; }
+  th, td { border: 1px solid #e2e4e8; padding: 5px 8px; text-align: left; }
+  th { background: #eef1f4; position: sticky; top: 0; }
+  a { color: var(--w3c); }
+  #err { color: #b00; padding: 8px 24px; }
+  #count { color: #666; font-size: 12px; margin-left: 10px; }
+</style>
+</head>
+<body>
+<header><h1>State of Web Standards</h1>
+<small>Live view of <a href="https://github.com/w3c/browser-specs" style="color:#cde">w3c/browser-specs</a> — 831+ specs, who owns them, how mature they are</small></header>
+<div id="err"></div>
+<main>
+<div class="cards" id="cards"></div>
+<div class="grid">
+  <section><h2>By organization</h2><div id="orgs"></div></section>
+  <section><h2>By publication status</h2><div id="status"></div></section>
+  <section><h2>Top W3C groups</h2><div id="groups"></div></section>
+</div>
+<h2>Explorer
+  <input id="q" placeholder="filter by title / shortname / org / group..."><span id="count"></span><span id="chip"></span>
+</h2>
+<table><thead><tr><th>Title</th><th>Organization</th><th>Group</th><th>Status</th><th>Nightly</th></tr></thead><tbody id="rows"></tbody></table>
+</main>
+
+<script>
+const URL = 'https://w3c.github.io/browser-specs/index.json';
+const $ = id => document.getElementById(id);
+const countBy = (arr, fn) => arr.reduce((m, s) => { const k = fn(s) || '(none)'; m[k] = (m[k]||0)+1; return m; }, {});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let filter = null; // {key, val}
+
+function bars(el, obj, limit, key) {
+  const top = Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0, limit || 12);
+  const max = top[0][1];
+  el.innerHTML = top.map(([k,v]) =>
+    `<div class="bar${filter && filter.val===k ? ' sel' : ''}" data-k="${key}" data-v="${esc(k)}">
+      <span class="label" title="${esc(k)}">${esc(k)}</span>
+      <span class="fill" style="width:${v/max*45}%"></span><span class="n">${v}</span></div>`).join('');
+}
+
+fetch(URL).then(r => r.json()).then(specs => {
+  const orgs = countBy(specs, s => s.organization);
+  const w3cSpecs = specs.filter(s => s.organization === 'W3C');
+  const w3cGroups = new Set(w3cSpecs.flatMap(s => (s.groups||[]).map(g => g.name)));
+  const recs = specs.filter(s => s.release && s.release.status === 'Recommendation').length;
+  $('cards').innerHTML = [
+    [specs.length, 'specs tracked'],
+    [Object.keys(orgs).length, 'organizations'],
+    [w3cGroups.size, 'W3C groups'],
+    [recs, 'Recommendations'],
+    [specs.length - specs.filter(s => s.release).length, 'nightly-only (incubating)'],
+  ].map(([n,l]) => `<div class="card"><b>${n}</b>${l}</div>`).join('');
+
+  const statusOf = s => (s.release && s.release.status) || 'Nightly only';
+  const groupCounts = {};
+  w3cSpecs.forEach(s => (s.groups||[]).forEach(g => groupCounts[g.name] = (groupCounts[g.name]||0)+1));
+
+  function paint() {
+    bars($('orgs'), orgs, 12, 'org');
+    bars($('status'), countBy(specs, statusOf), 12, 'status');
+    bars($('groups'), groupCounts, 12, 'group');
+    $('chip').innerHTML = filter ? `<span class="chip">${esc(filter.key)}: ${esc(filter.val)} ✕</span>` : '';
+    const q = $('q').value.toLowerCase();
+    const hit = specs.filter(s => {
+      if (filter) {
+        const val = filter.key === 'org' ? s.organization
+                  : filter.key === 'status' ? statusOf(s)
+                  : (s.groups||[]).map(g => g.name).join('|');
+        if (!String(val).split('|').includes(filter.val)) return false;
+      }
+      return !q || (s.title + s.shortname + (s.organization||'') + (s.groups||[]).map(g=>g.name).join(' ')).toLowerCase().includes(q);
+    });
+    $('count').textContent = hit.length + ' specs';
+    $('rows').innerHTML = hit.slice(0, 300).map(s => `<tr> <!-- ponytail: caps table at 300 rows; paginate if judges ask -->
+      <td><a href="${s.url}">${esc(s.title || s.shortname)}</a></td>
+      <td>${esc(s.organization || '')}</td>
+      <td>${esc((s.groups||[]).map(g => g.name).join(', '))}</td>
+      <td>${esc(statusOf(s))}</td>
+      <td>${s.nightly ? `<a href="${s.nightly.url}">ed draft</a>` : ''}</td></tr>`).join('');
+  }
+
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('org')) filter = {key: 'org', val: h.get('org')};
+  else if (h.get('status')) filter = {key: 'status', val: h.get('status')};
+  else if (h.get('group')) filter = {key: 'group', val: h.get('group')};
+
+  const setFilter = f => { filter = f; location.hash = f ? f.key + '=' + encodeURIComponent(f.val) : ''; paint(); };
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.bar');
+    if (b) setFilter(filter && filter.val === b.dataset.v ? null : {key: b.dataset.k, val: b.dataset.v});
+    if (e.target.closest('.chip')) setFilter(null);
+  });
+  $('q').oninput = paint;
+  paint();
+}).catch(e => $('err').textContent = 'Fetch failed: ' + e + ' (needs network access to w3c.github.io)');
+</script>
+</body>
+</html>
