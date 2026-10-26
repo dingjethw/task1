@@ -34,7 +34,7 @@
 </head>
 <body>
 <header><h1>State of Web Standards</h1>
-<small>Live view of <a href="https://github.com/w3c/browser-specs" style="color:#cde">w3c/browser-specs</a> — 831+ specs, who owns them, how mature they are</small></header>
+<small>Live view of <a href="https://github.com/w3c/browser-specs" style="color:#cde">w3c/browser-specs</a> — 831+ specs, who owns them, how mature they are<span id="fetched"></span></small></header>
 <div id="err"></div>
 <main>
 <div class="cards" id="cards"></div>
@@ -67,6 +67,7 @@ function bars(el, obj, limit, key) {
 }
 
 fetch(URL).then(r => r.json()).then(specs => {
+  $('fetched').textContent = ` · fetched live ${new Date().toLocaleString()}`;
   const orgs = countBy(specs, s => s.organization);
   const w3cSpecs = specs.filter(s => s.organization === 'W3C');
   const w3cGroups = new Set(w3cSpecs.flatMap(s => (s.groups||[]).map(g => g.name)));
